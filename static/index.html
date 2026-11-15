@@ -52,42 +52,69 @@ const $=s=>document.querySelector(s);let filter='all';let catalogPage=0;let sele
 function art(k,color){return `<svg viewBox="0 0 130 120" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="65" cy="109" rx="41" ry="6" fill="#27302c18"/><path d="M42 87v18h15V89m18 0v16h15V87" fill="${color}" stroke="#27302c" stroke-width="3"/><path d="M28 59L15 73l9 9 12-12m65-11 13 14-9 9-12-12" fill="${color}" stroke="#27302c" stroke-width="3"/><rect x="31" y="36" width="69" height="58" rx="${k%2?25:14}" fill="${color}" stroke="#27302c" stroke-width="3"/><path d="M44 37L${k%2?35:49} 18l15 13m12 5 14-18 2 23" fill="${color}" stroke="#27302c" stroke-width="3"/><rect x="39" y="48" width="53" height="28" rx="13" fill="#27302c"/><ellipse cx="53" cy="60" rx="5" ry="6" fill="#f6f5ed"/><ellipse cx="78" cy="60" rx="5" ry="6" fill="#f6f5ed"/><path d="M59 80q7 7 14 0" stroke="#27302c" stroke-width="2.5" stroke-linecap="round"/><path d="M61 24V12m-5 0h10" stroke="#27302c" stroke-width="3"/><circle cx="61" cy="9" r="5" fill="#f46b54" stroke="#27302c" stroke-width="2"/></svg>`}
 $('#heroArt').innerHTML=`<svg class="handheld-art" viewBox="0 0 150 160" role="img" aria-label="Red TokenDex handheld"><rect x="13" y="9" width="127" height="145" rx="24" fill="#27302c"/><rect x="7" y="4" width="127" height="145" rx="24" fill="#f46b54" stroke="#27302c" stroke-width="5"/><circle cx="27" cy="21" r="8" fill="#b6e6f1" stroke="#27302c" stroke-width="3"/><circle cx="44" cy="20" r="3" fill="#f8cd68"/><circle cx="54" cy="20" r="3" fill="#c8ef8b"/><rect x="20" y="36" width="100" height="80" rx="11" fill="#e5edcd" stroke="#27302c" stroke-width="4"/><g transform="translate(33 40) scale(.57)">${art(0,'#bdc4ed').replace(/<svg[^>]*>|<\/svg>/g,'')}</g><path d="M27 125v14m-7-7h14" stroke="#27302c" stroke-width="5"/><circle cx="96" cy="132" r="5" fill="#27302c"/><circle cx="113" cy="132" r="5" fill="#27302c"/></svg>`;
 
-function estimate(m){let bits=+$('#quant').value,ctx=+$('#context').value,mem=+$('#memory').value,bw=+$('#bandwidth').value;if(!hardwareReady)return {unknown:true,hardwareMissing:true,fit:false};if(!m.p)return {unknown:true,fit:false};let weights=m.p*bits/8*1.08;let kv=!m.moe&&m.layers&&m.kv?2*m.layers*m.kv*(m.head||128)*ctx*2/1e9:0;let need=weights+kv+1;if(!Number.isFinite(mem)||mem<2||!Number.isFinite(bw)||bw<10)return {unknown:true,hardwareMissing:true,fit:false};return{need,weights,kv,fit:need<=mem,speed:m.moe?null:1/(.004+weights/(.45*bw)),moe:!!m.moe,approx:!!m.moe||!m.layers}}
-function render(){hardwareReady=validHardware();$('#detectionState').textContent=hardwareReady?'● PLANNER READY':'◐ COMPLETE YOUR SPECS';let arr=models.filter(m=>filter==='all'||filter==='fits'&&estimate(m).fit||filter==='small'&&m.p<=4||filter==='big'&&m.p>4);if($('#sort').value==='small')arr.sort((a,b)=>(a.p||999)-(b.p||999));if($('#sort').value==='fast')arr.sort((a,b)=>(estimate(b).speed||0)-(estimate(a).speed||0));$('#count').textContent=`/ ${arr.length.toString().padStart(2,'0')}`;const pageSize=typeof matchMedia==='function'&&matchMedia('(min-width:1101px)').matches?6:4;const pages=Math.max(1,Math.ceil(arr.length/pageSize));catalogPage=Math.min(catalogPage,pages-1);const visible=arr.slice(catalogPage*pageSize,(catalogPage+1)*pageSize);$('#pager').hidden=pages===1;$('#pageInfo').textContent=`${catalogPage*pageSize+1}–${Math.min((catalogPage+1)*pageSize,arr.length)} of ${arr.length} models`;$('#previousPage').disabled=catalogPage===0;$('#nextPage').disabled=catalogPage>=pages-1;const markup=visible.length?visible.map(m=>{let e=estimate(m);return `<article class="card ${m.id===selected.id?'chosen':''}" tabindex="0" role="button" aria-label="Scan ${escapeHTML(m.n)}" data-id="${encodeURIComponent(m.id)}"><div class="portrait" style="--tint:${m.color}"><span class="number">#${(models.indexOf(m)+1).toString().padStart(3,'0')}</span><span class="type">${m.p?m.p.toFixed(1)+'B':'UNKNOWN'}</span>${art(m.kind,m.color)}</div><div class="card-body"><div class="model-heading"><h3>${escapeHTML(m.n)}</h3><div class="model-actions"><button class="view-info" type="button" aria-label="View info about ${escapeHTML(m.n)}">View info</button><a class="model-link" href="${modelURL(m.id)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHTML(m.n)} on Hugging Face">HF ↗</a></div></div><div class="owner" title="${m.downloads!=null?m.downloads.toLocaleString()+' downloads reported by Hugging Face':''}">${escapeHTML(m.id.split('/')[0])} / ${m.downloads!=null?formatDownloads(m.downloads)+' downloads':m.moe?'Mixture of experts':'Text generation'}</div><div class="specs"><span>${m.p?m.p.toFixed(1)+'B params':'Size unknown'}</span><span>${e.unknown?'—':(e.approx?'≥ ':'')+e.need.toFixed(1)+' GB'}</span></div><div class="rating"><b style="background:${e.unknown?'#eee':!e.fit?'#fbd6cd':e.speed>=+$('#target').value?'#e2f2cf':'#fff0c9'}">${e.hardwareMissing?'Set up hardware':e.unknown?'Needs review':!e.fit?'↑ Upgrade needed':e.moe?'MoE · memory fits':e.speed>=+$('#target').value?'✦ Super smooth':'◷ Take it slow'}</b><strong>${e.fit&&Number.isFinite(e.speed)?Math.round(e.speed)+' t/s':'—'}</strong></div></div></article>`}).join(''):'<div id="empty">No models match. Try another search or filter.</div>';const container=$('#cards'),signature=visible.map(m=>m.id).join('|');if(container.dataset.signature!==signature){container.innerHTML=markup;container.dataset.signature=signature}else updateVisibleMetrics();document.querySelectorAll('.card').forEach(c=>{c.onpointerenter=()=>{clearTimeout(c.prefetchTimer);c.prefetchTimer=setTimeout(()=>fetchModelDescription(decodeURIComponent(c.dataset.id)),140)};c.onpointerleave=()=>clearTimeout(c.prefetchTimer);c.onclick=e=>{if(e.target.closest('a'))return;const id=decodeURIComponent(c.dataset.id);choose(id);if(e.target.closest('.view-info'))openModelDetails(id)};c.onkeydown=e=>{if(e.target!==c)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click()}}});scan()}
+function hardwareValue(id){
+ const field=$('#'+id);
+ return field.value!==''&&field.checkValidity()?field.valueAsNumber:null;
+}
+function estimate(m){
+ if(!m.p)return {unknown:true};
+ const weights=m.p*Number($('#quant').value)/8*1.08;
+ const ctx=Number($('#context').value);
+ const kv=!m.moe&&m.layers&&m.kv?2*m.layers*m.kv*(m.head||128)*ctx*2/1e9:0;
+ const need=weights+kv+1;
+ const memory=hardwareValue('memory'),bandwidth=hardwareValue('bandwidth');
+ const fit=memory===null?null:need<=memory;
+ const speed=fit&&!m.moe&&bandwidth!==null?1/(.004+weights/(.45*bandwidth)):null;
+ return {need,weights,fit,speed,moe:!!m.moe,approx:!!m.moe||!m.layers||!m.kv};
+}
+function rating(e){
+ if(e.unknown)return 'Needs review';
+ if(e.fit===null)return 'Memory budget unknown';
+ if(!e.fit)return '↑ Upgrade needed';
+ if(e.moe)return 'MoE · memory fits';
+ if(e.speed===null)return 'Memory fits';
+ return e.speed>=Number($('#target').value)?'✦ Super smooth':'◷ Take it slow';
+}
+function render(){hardwareReady=validHardware();$('#detectionState').textContent=hardwareReady?'● PLANNER READY':'◐ COMPLETE YOUR SPECS';let arr=models.filter(m=>filter==='all'||filter==='fits'&&estimate(m).fit||filter==='small'&&m.p<=4||filter==='big'&&m.p>4);if($('#sort').value==='small')arr.sort((a,b)=>(a.p||999)-(b.p||999));if($('#sort').value==='fast')arr.sort((a,b)=>(estimate(b).speed||0)-(estimate(a).speed||0));$('#count').textContent=`/ ${arr.length.toString().padStart(2,'0')}`;const pageSize=typeof matchMedia==='function'&&matchMedia('(min-width:1101px)').matches?6:4;const pages=Math.max(1,Math.ceil(arr.length/pageSize));catalogPage=Math.min(catalogPage,pages-1);const visible=arr.slice(catalogPage*pageSize,(catalogPage+1)*pageSize);$('#pager').hidden=pages===1;$('#pageInfo').textContent=`${catalogPage*pageSize+1}–${Math.min((catalogPage+1)*pageSize,arr.length)} of ${arr.length} models`;$('#previousPage').disabled=catalogPage===0;$('#nextPage').disabled=catalogPage>=pages-1;const markup=visible.length?visible.map(m=>{let e=estimate(m);return `<article class="card ${m.id===selected.id?'chosen':''}" tabindex="0" role="button" aria-label="Scan ${escapeHTML(m.n)}" data-id="${encodeURIComponent(m.id)}"><div class="portrait" style="--tint:${m.color}"><span class="number">#${(models.indexOf(m)+1).toString().padStart(3,'0')}</span><span class="type">${m.p?m.p.toFixed(1)+'B':'UNKNOWN'}</span>${art(m.kind,m.color)}</div><div class="card-body"><div class="model-heading"><h3>${escapeHTML(m.n)}</h3><div class="model-actions"><button class="view-info" type="button" aria-label="View info about ${escapeHTML(m.n)}">View info</button><a class="model-link" href="${modelURL(m.id)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHTML(m.n)} on Hugging Face">HF ↗</a></div></div><div class="owner" title="${m.downloads!=null?m.downloads.toLocaleString()+' downloads reported by Hugging Face':''}">${escapeHTML(m.id.split('/')[0])} / ${m.downloads!=null?formatDownloads(m.downloads)+' downloads':m.moe?'Mixture of experts':'Text generation'}</div><div class="specs"><span>${m.p?m.p.toFixed(1)+'B params':'Size unknown'}</span><span>${e.unknown?'—':(e.approx?'≥ ':'')+e.need.toFixed(1)+' GB'}</span></div><div class="rating"><b style="background:${e.unknown||e.fit===null?'#eee':!e.fit?'#fbd6cd':e.speed>=+$('#target').value?'#e2f2cf':'#fff0c9'}">${rating(e)}</b><strong>${e.fit&&Number.isFinite(e.speed)?Math.round(e.speed)+' t/s':'—'}</strong></div></div></article>`}).join(''):'<div id="empty">No models match. Try another search or filter.</div>';const container=$('#cards'),signature=visible.map(m=>m.id).join('|');if(container.dataset.signature!==signature){container.innerHTML=markup;container.dataset.signature=signature}else updateVisibleMetrics();document.querySelectorAll('.card').forEach(c=>{c.onpointerenter=()=>{clearTimeout(c.prefetchTimer);c.prefetchTimer=setTimeout(()=>fetchModelDescription(decodeURIComponent(c.dataset.id)),140)};c.onpointerleave=()=>clearTimeout(c.prefetchTimer);c.onclick=e=>{if(e.target.closest('a'))return;const id=decodeURIComponent(c.dataset.id);choose(id);if(e.target.closest('.view-info'))openModelDetails(id)};c.onkeydown=e=>{if(e.target!==c)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click()}}});scan()}
 function updateVisibleMetrics(){
  document.querySelectorAll('.card').forEach(card=>{
   const model=models.find(m=>m.id===decodeURIComponent(card.dataset.id));if(!model||!card.querySelector)return;const e=estimate(model);
   const put=(selector,value)=>{const el=card.querySelector(selector);if(el&&el.textContent!==value)el.textContent=value};
   put('.specs span:first-child',model.p?model.p.toFixed(1)+'B params':'Size unknown');put('.specs span:last-child',e.unknown?'—':(e.approx?'≥ ':'')+e.need.toFixed(1)+' GB');
-  const label=e.hardwareMissing?'Set up hardware':e.unknown?'Needs review':!e.fit?'↑ Upgrade needed':e.moe?'MoE · memory fits':e.speed>=+$('#target').value?'✦ Super smooth':'◷ Take it slow';
+  const label=rating(e);
   put('.rating b',label);put('.rating strong',e.fit&&Number.isFinite(e.speed)?Math.round(e.speed)+' t/s':'—');
-  const badge=card.querySelector('.rating b');if(badge)badge.style.background=e.unknown?'#eee':!e.fit?'#fbd6cd':e.speed>=+$('#target').value?'#e2f2cf':'#fff0c9';
+  const badge=card.querySelector('.rating b');if(badge)badge.style.background=e.unknown||e.fit===null?'#eee':!e.fit?'#fbd6cd':e.speed>=+$('#target').value?'#e2f2cf':'#fff0c9';
   card.classList?.toggle('chosen',selected.id===model.id);
  });
 }
-function upgradeNeeds(e,t,memory,bandwidth){
- if(e.unknown)return null;
- const requiredBandwidth=e.moe?null:Math.ceil(e.weights/(.45*(1/t-.004)));
- return {memory:Math.ceil(e.need*10)/10,bandwidth:requiredBandwidth,extraMemory:Math.max(0,Math.ceil((e.need-memory)*10)/10),extraBandwidth:requiredBandwidth===null?null:Math.max(0,requiredBandwidth-bandwidth)};
-}
 function renderResourceDeltas(e,t){
- const u=upgradeNeeds(e,t,+$('#memory').value,+$('#bandwidth').value);
- const set=(id,extra,unit,required)=>{
-  const el=$('#'+id);
-  const measurable=u&&required!==null;el.className='resource-delta'+(measurable?(extra>0?' resource-shortfall':' resource-sufficient'):'');
-  el.textContent=!measurable?(e.hardwareMissing?'Enter specs to compare':u&&e.moe?'MoE · benchmark needed':'Estimate unavailable'):extra>0?'+'+extra.toLocaleString()+' '+unit+' needed':'✓ Sufficient';
-  el.title=measurable?`${selected.n} · ${e.moe?'memory lower bound':'target '+t+' tok/s'} · requires ${required.toLocaleString()} ${unit}`:'';
- };
- set('memoryDelta',u?.extraMemory,'GB',u?.memory);set('bandwidthDelta',u?.extraBandwidth,'GB/s',u?.bandwidth);
- if(!u)return;
- $('#recommendation').textContent=e.moe?`Full in-memory requirement: ≥ ${e.need.toFixed(1)} GB at ${$('#quant').value}-bit. All expert weights must fit; offloading is not simulated. Speed needs a runtime benchmark.`:e.approx?'Memory is a lower bound: context-cache details are unavailable.':e.fit?`Estimated range: ${Math.round(e.speed*.7)}–${Math.round(e.speed*1.3)} tok/s. Requirements update with your model settings.`:'Extra memory is shown above. Requirements include model weights, context cache and runtime headroom.';
+ const requiredBandwidth=e.unknown||e.moe?null:Math.ceil(e.weights/(.45*(1/t-.004)));
+ function show(id,required,unit){
+  const el=$('#'+id+'Delta'),available=hardwareValue(id);
+  el.className='resource-delta';
+  if(required===null){
+   el.textContent=e.moe?'MoE · benchmark needed':'Requirement unavailable';
+  }else if(available===null){
+   el.textContent='Model needs '+(id==='memory'&&e.approx?'≥ ':'≈ ')+required.toLocaleString()+' '+unit;
+  }else{
+   const extra=Math.ceil((required-available)*10)/10;
+   el.classList.add(extra>0?'resource-shortfall':'resource-sufficient');
+   el.textContent=extra>0?'+'+extra.toLocaleString()+' '+unit+' needed':'✓ Sufficient';
+  }
+ }
+ show('memory',e.unknown?null:Math.ceil(e.need*10)/10,'GB');
+ show('bandwidth',requiredBandwidth,'GB/s');
 }
-
 function escapeHTML(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function scan(){
  const e=estimate(selected),t=+$('#target').value;$('#selectedName').textContent=selected.n;$('#speed').textContent=e.fit&&Number.isFinite(e.speed)?Math.round(e.speed):'—';$('#targetText').textContent=t;
- $('#verdict').textContent=e.hardwareMissing?'Confirm your hardware to see estimates':e.unknown?'Parameter count unavailable':!e.fit?'More memory needed for full loading':e.moe?'Memory fits · MoE speed unmeasured':e.speed>=t?'✦ A smooth match for your machine!':'A little patience goes a long way.';
- $('#recommendation').textContent=e.hardwareMissing?'Enter usable model memory and bandwidth above.':e.unknown?'Model size metadata is unavailable. Read the model card for requirements.':'';
+ $('#verdict').textContent=e.unknown?'Parameter count unavailable':e.fit===null?'Enter a memory budget to check fit':!e.fit?'More memory needed for full loading':e.moe?'Memory fits · MoE speed unmeasured':e.speed===null?'Memory fits · enter bandwidth for speed':e.speed>=t?'✦ A smooth match for your machine!':'A little patience goes a long way.';
+ if(e.unknown)$('#recommendation').textContent='Read the model card for requirements.';
+ else{
+  const requirement='Estimated model memory: '+(e.approx?'≥ ':'')+e.need.toFixed(1)+' GB at '+$('#quant').value+'-bit.';
+  const detail=e.moe?'MoE speed requires a runtime benchmark.':e.speed!==null?'Estimated speed range: '+Math.round(e.speed*.7)+'–'+Math.round(e.speed*1.3)+' tok/s.':e.approx?'Context-cache details are unavailable.':'Includes weights, context cache and runtime headroom.';
+  $('#recommendation').textContent=requirement+' '+detail;
+ }
  renderResourceDeltas(e,t);renderModelProfile();
 }
 
@@ -187,8 +214,9 @@ $('#searchForm').onsubmit=e=>{e.preventDefault();loadCatalog($('#search').value.
 
 function browserPlatform(){
  const ua=navigator.userAgent;
- if(/iPad/.test(ua)||(/Mac/.test(ua)&&navigator.maxTouchPoints>1))return 'iPadOS';
  if(/iPhone|iPod/.test(ua))return 'iOS';
+ if(/iPad/.test(ua))return 'iPadOS';
+ if(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1)return 'Apple touch device';
  return navigator.userAgentData?.platform||['Android','Windows','Mac','Linux'].find(os=>ua.includes(os))?.replace(/^Mac$/,'macOS')||'Unknown OS';
 }
 
@@ -249,12 +277,14 @@ async function detectHardware(){
   const ram=Number(navigator.deviceMemory);
   const hasRam=Number.isFinite(ram)&&ram>0;
   const provisional=profile.unified&&hasRam&&ram>=2&&ram<=2048;
-  $('#chipName').textContent=profile.name||'GPU name unavailable';
+  const genericApple=/^apple(?: gpu)?$/i.test(profile.name||'');
+  const device=/iPhone/.test(navigator.userAgent)?'iPhone':/iPad/.test(navigator.userAgent)?'iPad':'Apple device';
+  $('#chipName').textContent=genericApple?device+' · Apple GPU':profile.name||'GPU name unavailable';
   $('#systemOS').textContent=[browserPlatform(),profile.name?'Browser-reported adapter':'Browser limits GPU identification',Number.isInteger(navigator.hardwareConcurrency)&&navigator.hardwareConcurrency>0?navigator.hardwareConcurrency+' logical processors reported':'',hasRam?'Approx. system RAM: '+ram+' GiB':''].filter(Boolean).join(' · ');
   applyHardwareField('memory',profile.memory??(provisional?ram:undefined),
    profile.memory?'Estimated · GPU memory budget':provisional?'Estimated · rounded system RAM. Adjust for system usage.':'Unknown · enter memory available to the model');
   applyHardwareField('bandwidth',profile.bandwidth,profile.bandwidth?'Estimated · nominal chip specification':'Unknown · enter your chip’s memory bandwidth');
-  $('#hardwareSource').textContent='Use your device settings to check memory and the chip manufacturer’s specifications for bandwidth. Manual edits survive rescanning.';
+  $('#hardwareSource').textContent=genericApple?'Your browser reports the GPU vendor only. The exact chip and usable memory are unavailable. Model requirements are shown below.':'Use your device settings to check memory and the chip manufacturer’s specifications for bandwidth. Manual edits survive rescanning.';
  }finally{
   button.disabled=false;button.textContent='↻ Scan again';render();
  }
