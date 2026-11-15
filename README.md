@@ -67,9 +67,9 @@ The server listens on `0.0.0.0:$PORT`, defaulting to `10000`. Render handles pub
 
 ## Browser behavior
 
-Hardware detection reads the visitor's browser, not the Render machine. RAM values can be rounded/capped and are not a measurement of currently free memory. The editable memory capacity starts with the browser-reported value without a reserve deduction. Recognized chip bandwidth values are specifications, not measurements.
+Hardware detection runs in the visitor’s browser. WebGPU and WebGL can expose an adapter name. Phones, managed browsers and insecure origins may expose only the platform or approximate system RAM. On Apple M chips, available browser RAM seeds a provisional memory budget. Other devices show approximate system RAM separately from GPU memory. Recognized presets label nominal bandwidth as an estimate. For example, Apple lists [200 GB/s for M2 Pro](https://www.apple.com/uk/business/docs/site/Whats_New_for_Business.pdf). Missing fields accept manual input, and scanning again preserves edits made on the page.
 
-The browser calls public Hugging Face APIs directly for popular models, search, configurations, metadata, and descriptions. Those requests depend on the visitor's network, provider access controls, CORS policies, and rate limits. A starter collection remains usable if the live catalog is unavailable. Fonts use Google Fonts with local fallbacks.
+The browser calls public Hugging Face APIs directly for popular models, search, configurations, metadata, and descriptions. Those requests depend on the visitor's network, provider access controls, CORS policies, and rate limits. A starter collection remains usable if the live catalog is unavailable. All panels and controls use the bundled Space Grotesk variable font. Its SIL Open Font License is included under `static/fonts/`. The device scan runs automatically on page load and shows the browser-reported logical processor count when available.
 
 Speed predictions are heuristics, not measured benchmarks. Mixture-of-experts models receive rough full-weight memory estimates but no invented speed or bandwidth targets. Model context limit comes from the model configuration; the context dropdown selects the workload being estimated. Check the model's original license and documentation before use.
 

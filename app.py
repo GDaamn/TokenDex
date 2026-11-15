@@ -13,6 +13,11 @@ def index():
     return send_from_directory(STATIC_DIR, "index.html", max_age=0)
 
 
+@app.get("/fonts/<filename>")
+def font_asset(filename):
+    return send_from_directory(STATIC_DIR / "fonts", filename)
+
+
 @app.get("/healthz")
 def health():
     return Response("ok", mimetype="text/plain")
